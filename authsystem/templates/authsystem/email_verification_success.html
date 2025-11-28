@@ -1,0 +1,17 @@
+{% extends 'monitor/base.html' %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-900">
+    <div class="max-w-lg mx-auto bg-gray-900 p-10 rounded-xl shadow-xl border border-green-500/20 text-center">
+        <h2 class="text-3xl font-semibold text-green-400 mb-4">Email Verified!</h2>
+        <p class="text-gray-300">
+            Your email has been successfully verified. You can now 
+            <a href="{% url 'login' %}" class="text-cyan-400 underline hover:text-cyan-300">log in</a>.
+        </p>
+
+        <p class="text-gray-500 text-sm mt-2">
+            Thank you for verifying your email! Enjoy using Network Monitoring.
+        </p>
+    </div>
+</div>
+{% endblock %}

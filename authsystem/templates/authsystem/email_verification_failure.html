@@ -1,0 +1,15 @@
+{% extends 'monitor/base.html' %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-900">
+    <div class="max-w-lg mx-auto bg-gray-900 p-10 rounded-xl shadow-xl border border-red-500/20 text-center">
+        <h2 class="text-3xl font-semibold text-red-400 mb-4">Verification Failed!</h2>
+        <p class="text-gray-300 mb-4">
+            The verification link is invalid or has expired.
+        </p>
+        <p class="text-gray-300">
+            You can <a href="{% url 'register' %}" class="text-cyan-400 underline hover:text-cyan-300">register</a> again to receive a new verification email.
+        </p>
+    </div>
+</div>
+{% endblock %}

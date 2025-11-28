@@ -1,0 +1,25 @@
+{% extends "monitor/base.html" %}
+{% block title %}Alerts{% endblock %}
+
+{% block content %}
+
+<h2 class="text-3xl font-bold text-cyan-400 mb-6">Alerts</h2>
+
+<div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow">
+
+    {% if alerts %}
+    <ul class="space-y-4">
+        {% for alert in alerts %}
+        <li class="bg-[#0d1a2b] p-4 border border-red-500/30 rounded">
+            <p class="text-red-300 font-semibold">{{ alert.message }}</p>
+            <small class="text-gray-400">{{ alert.timestamp }}</small>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-gray-400">No alerts found.</p>
+    {% endif %}
+
+</div>
+
+{% endblock %}

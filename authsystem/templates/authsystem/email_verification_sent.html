@@ -1,0 +1,22 @@
+{% extends 'monitor/base.html' %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-900">
+    <div class="max-w-lg mx-auto bg-gray-900 p-10 rounded-xl shadow-xl border border-cyan-500/20 text-center">
+        <h2 class="text-3xl font-semibold text-cyan-400 mb-4">Verification Email Sent!</h2>
+        <p class="text-gray-300">
+            A verification link has been sent to <strong>{{ email }}</strong>.  
+            Please check your inbox to verify your account.
+        </p>
+
+        <p class="text-gray-500 text-sm mt-2">
+            Didn't receive the email? Check your spam folder or try registering again.
+        </p>
+
+        <p class="text-gray-300 mt-4">
+            After verifying your email, you can 
+            <a href="{% url 'login' %}" class="text-cyan-400 hover:underline">login here</a>.
+        </p>
+    </div>
+</div>
+{% endblock %}

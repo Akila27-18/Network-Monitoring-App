@@ -1,0 +1,57 @@
+{% extends "monitor/base.html" %}
+
+{% block title %}Login — Network Monitoring{% endblock %}
+
+{% block content %}
+
+<div class="max-w-md mx-auto mt-10 bg-[#102238] p-8 rounded-xl border border-cyan-500/20 shadow-lg">
+
+    <h2 class="text-2xl font-bold mb-6 text-center text-cyan-400">Login</h2>
+
+    {% if error %}
+        <div class="bg-red-500/20 text-red-300 border border-red-500/30 px-4 py-2 rounded mb-4">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <!-- Email -->
+        <div class="mb-4">
+            {{ form.email.label_tag }}
+            {{ form.email }}
+            {% if form.email.errors %}
+                <p class="text-red-400 text-sm mt-1">{{ form.email.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Password -->
+        <div class="mb-4">
+            {{ form.password.label_tag }}
+            {{ form.password }}
+            {% if form.password.errors %}
+                <p class="text-red-400 text-sm mt-1">{{ form.password.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Remember Me -->
+        <div class="flex items-center mb-4">
+            {{ form.remember_me }}
+            {{ form.remember_me.label_tag }}
+        </div>
+
+        <button type="submit"
+                class="w-full bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-semibold py-2 rounded transition">
+            Login
+        </button>
+    </form>
+
+    <p class="text-center text-gray-400 text-sm mt-4">
+        Don't have an account?
+        <a href="{% url 'register' %}" class="text-cyan-400 hover:underline">Register</a>
+    </p>
+
+</div>
+
+{% endblock %}

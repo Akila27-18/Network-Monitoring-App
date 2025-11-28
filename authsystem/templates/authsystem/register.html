@@ -1,0 +1,62 @@
+{% extends "monitor/base.html" %}
+
+{% block title %}Register — Network Monitoring{% endblock %}
+
+{% block content %}
+
+<div class="max-w-md mx-auto mt-10 bg-[#102238] p-8 rounded-xl border border-cyan-500/20 shadow-lg">
+
+    <h2 class="text-2xl font-bold mb-6 text-center text-cyan-400">Create Account</h2>
+
+    {% if form.non_field_errors %}
+        <div class="bg-red-500/20 text-red-300 border border-red-500/30 px-4 py-2 rounded mb-4">
+            {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <!-- Email -->
+        <div class="mb-4">
+            {{ form.email.label_tag }}
+            {{ form.email }}
+            {% if form.email.errors %}
+                <p class="text-red-400 text-sm mt-1">{{ form.email.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Password -->
+        <div class="mb-4">
+            {{ form.password1.label_tag }}
+            {{ form.password1 }}
+            {% if form.password1.errors %}
+                <p class="text-red-400 text-sm mt-1">{{ form.password1.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="mb-4">
+            {{ form.password2.label_tag }}
+            {{ form.password2 }}
+            {% if form.password2.errors %}
+                <p class="text-red-400 text-sm mt-1">{{ form.password2.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <button type="submit"
+                class="w-full bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-semibold py-2 rounded transition">
+            Register
+        </button>
+    </form>
+
+    <p class="text-center text-gray-400 text-sm mt-4">
+        Already have an account?
+        <a href="{% url 'login' %}" class="text-cyan-400 hover:underline">Login</a>
+    </p>
+
+</div>
+
+{% endblock %}

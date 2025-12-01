@@ -1,0 +1,72 @@
+{% extends "monitor/base.html" %}
+{% block title %}Activity Logs — Network Monitoring{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-8">
+  <h1 class="text-2xl font-bold text-cyan-400 mb-4">Activity Logs</h1>
+
+  <form method="get" class="mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
+    <input type="text" name="q" placeholder="Search path / ip / extra" value="{{ filters.q }}"
+        class="p-2 rounded bg-[#0d1a2b] text-gray-200 border border-cyan-500/20" />
+    <select name="event" class="p-2 rounded bg-[#0d1a2b] text-gray-200 border border-cyan-500/20">
+      <option value="">All events</option>
+      {% for code,label in event_choices %}
+        <option value="{{ code }}" {% if filters.event == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="user" placeholder="User email" value="{{ filters.user }}"
+        class="p-2 rounded bg-[#0d1a2b] text-gray-200 border border-cyan-500/20" />
+    <input type="date" name="from" value="{{ filters.from }}" class="p-2 rounded bg-[#0d1a2b] text-gray-200 border border-cyan-500/20" />
+    <input type="date" name="to" value="{{ filters.to }}" class="p-2 rounded bg-[#0d1a2b] text-gray-200 border border-cyan-500/20" />
+    <div class="md:col-span-5 text-right">
+      <button type="submit" class="px-4 py-2 bg-cyan-500 rounded text-black">Filter</button>
+      <a href="{% url 'activity_logs' %}" class="px-4 py-2 ml-2 border rounded text-cyan-400">Reset</a>
+    </div>
+  </form>
+
+  <div class="bg-[#102238] rounded shadow border border-cyan-500/20 overflow-hidden">
+    <table class="min-w-full text-left">
+      <thead class="bg-[#0d1a2b] text-gray-300">
+        <tr>
+          <th class="p-3">Time</th>
+          <th class="p-3">User</th>
+          <th class="p-3">Event</th>
+          <th class="p-3">IP</th>
+          <th class="p-3">Path</th>
+          <th class="p-3">Extra</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in page_obj %}
+        <tr class="border-t border-cyan-500/10">
+          <td class="p-3 text-gray-300">{{ log.timestamp }}</td>
+          <td class="p-3">{{ log.user.email if log.user else "—" }}</td>
+          <td class="p-3 text-gray-200">{{ log.get_event_display }}</td>
+          <td class="p-3 text-gray-300">{{ log.ip_address }}</td>
+          <td class="p-3 text-gray-300">{{ log.path }}</td>
+          <td class="p-3 text-gray-400">{{ log.extra|truncatechars:80 }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td class="p-4 text-gray-400" colspan="6">No logs found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mt-4">
+    <div class="flex justify-between items-center">
+      <div class="text-gray-400">Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</div>
+      <div class="space-x-2">
+        {% if page_obj.has_previous %}
+        <a href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}" class="px-3 py-1 bg-[#0d1a2b] rounded">Prev</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+        <a href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}page={{ page_obj.next_page_number }}" class="px-3 py-1 bg-[#0d1a2b] rounded">Next</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

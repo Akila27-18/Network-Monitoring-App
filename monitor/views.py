@@ -1,204 +1,164 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout
-from django.core.cache import cache
-from django.core.mail import send_mail
-from django.urls import reverse
-from django.conf import settings
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.utils.encoding import force_bytes
+from django.shortcuts import render, redirect
 from django.db.models import Sum
+from django.http import HttpResponse
+import csv
+import io
+from django.utils import timezone
 
-from authsystem.forms import EmailLoginForm, RegisterForm
-from authsystem.models import CustomUser 
-from .models import NetworkLog, Alert
-from authsystem.tokens import email_verification_token
 from authsystem.decorators import role_required
+from .models import NetworkLog, Alert
+from threatintel.models import ThreatIP
+from django.http import JsonResponse
 
 
-# ---------------------------
-# EMAIL VERIFICATION
-# ---------------------------
-def email_verify_view(request, uidb64, token):
-    try:
-        uid = urlsafe_base64_decode(uidb64).decode()
-        user = CustomUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, CustomUser.DoesNotExist):
-        user = None
 
-    if user and email_verification_token.check_token(user, token):
-        user.email_verified = True
-        user.save()
-        return render(request, "authsystem/email_verification_success.html")
+def dashboard_data_api(request):
+    logs = NetworkLog.objects.order_by('-timestamp')[:12]
+    timeline_labels = [log.timestamp.strftime("%H:%M:%S") for log in logs[::-1]]
+    timeline_data = [log.bytes_transferred for log in logs[::-1]]
 
-    return render(request, "authsystem/email_verification_failure.html")
+    top_ips = (
+        NetworkLog.objects.values('source_ip')
+        .annotate(total=Sum('bytes_transferred'))
+        .order_by('-total')[:5]
+    )
+    top_ip_labels = [r['source_ip'] for r in top_ips]
+    top_ip_values = [r['total'] for r in top_ips]
 
+    return JsonResponse({
+        "timeline_labels": timeline_labels,
+        "timeline_data": timeline_data,
+        "top_ip_labels": top_ip_labels,
+        "top_ip_values": top_ip_values,
+    })
 
-# ---------------------------
-# REGISTRATION
-# ---------------------------
-def register_view(request):
-    if request.method == "POST":
-        form = RegisterForm(request.POST)
-        if form.is_valid():
-            user = form.save(commit=False)
-            user.email_verified = False
-            user.save()
-
-            # Generate token & UID
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            token = email_verification_token.make_token(user)
-
-            verification_url = request.build_absolute_uri(
-                reverse("email_verify", kwargs={"uidb64": uid, "token": token})
-            )
-
-            subject = "Verify your email for Network Monitor"
-            message = (
-                f"Hi {user.email},\n\n"
-                f"Please verify your email by clicking the link below:\n{verification_url}\n\n"
-                "Thank you!"
-            )
-
-            send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email])
-
-            return render(
-                request,
-                "authsystem/email_verification_sent.html",
-                {"email": user.email}
-            )
-    else:
-        form = RegisterForm()
-
-    return render(request, "authsystem/register.html", {"form": form})
-
-
-# ---------------------------
-# LOGIN
-# ---------------------------
-def login_view(request):
-    if request.method == "POST":
-        form = EmailLoginForm(request.POST)
-
-        if form.is_valid():
-            email = form.cleaned_data["email"]
-            password = form.cleaned_data["password"]
-            remember = form.cleaned_data["remember_me"]
-
-            user = authenticate(request, username=email, password=password)
-
-            if user:
-                if not user.email_verified:
-                    return render(
-                        request,
-                        "authsystem/login.html",
-                        {
-                            "form": form,
-                            "error": "Email not verified. Please check your inbox."
-                        },
-                    )
-
-                login(request, user)
-
-                # Reset rate limit for this IP
-                ip = get_client_ip(request)
-                cache.delete(f"login_attempts_{ip}")
-
-                # Remember me session
-                request.session.set_expiry(1209600 if remember else 0)
-
-                return redirect("dashboard")
-
-            return render(
-                request,
-                "authsystem/login.html",
-                {"form": form, "error": "Invalid email or password"},
-            )
-    else:
-        form = EmailLoginForm()
-
-    return render(request, "authsystem/login.html", {"form": form})
-
-
-# ---------------------------
-# LOGOUT
-# ---------------------------
-def logout_view(request):
-    logout(request)
-    return redirect("login")
-
-
-# ---------------------------
-# GET CLIENT IP
-# ---------------------------
-def get_client_ip(request):
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    return x_forwarded_for.split(",")[0] if x_forwarded_for else request.META.get("REMOTE_ADDR")
-
-
-# ---------------------------
-# DASHBOARD
-# ---------------------------
-@role_required()  # No roles specified → all logged-in users can see
-def dashboard_view(request):
-    user = request.user
-
-    # Basic stats for all users
+def stats_partial(request):
     total_logs = NetworkLog.objects.count()
+    active_alerts = Alert.objects.filter(severity="High").count()
     unique_ips = NetworkLog.objects.values("source_ip").distinct().count()
+    threat_count = ThreatIP.objects.count()
 
-    # Role-specific stats
-    if user.role in ['admin', 'analyst']:
-        active_alerts = Alert.objects.filter(severity="High").count()
-        # Traffic over time (last 7 logs)
-        logs = NetworkLog.objects.order_by('-timestamp')[:7]
-        timeline_labels = [log.timestamp.strftime("%H:%M") for log in logs]
-        timeline_data = [log.bytes_transferred for log in logs]
+    return render(request, "monitor/partials/stats_partial.html", {
+        "total_logs": total_logs,
+        "active_alerts": active_alerts,
+        "unique_ips": unique_ips,
+        "threat_count": threat_count,
+    })
 
-        # Top 5 Source IPs
-        top_ips = (
-            NetworkLog.objects.values('source_ip')
-            .annotate(total=Sum('bytes_transferred'))
-            .order_by('-total')[:5]
-        )
-        top_ip_labels = [row['source_ip'] for row in top_ips]
-        top_ip_values = [row['total'] for row in top_ips]
 
-        latest_alerts = Alert.objects.order_by('-timestamp')[:5]
-    else:
-        # Viewer role sees limited info
-        active_alerts = None
-        timeline_labels = []
-        timeline_data = []
-        top_ip_labels = []
-        top_ip_values = []
-        latest_alerts = []
 
-    context = {
+# Dashboard (existing)
+@role_required(['admin', 'analyst', 'viewer'])
+def dashboard_view(request):
+    total_logs = NetworkLog.objects.count()
+    active_alerts = Alert.objects.filter(severity="High").count()
+    unique_ips = NetworkLog.objects.values("source_ip").distinct().count()
+    threat_count = ThreatIP.objects.count()
+
+    # timeline (last 12 entries)
+    logs = NetworkLog.objects.order_by('-timestamp')[:12]
+    timeline_labels = [log.timestamp.strftime("%H:%M:%S") for log in logs[::-1]]  # oldest -> newest
+    timeline_data = [log.bytes_transferred for log in logs[::-1]]
+
+    top_ips = (
+        NetworkLog.objects.values('source_ip')
+        .annotate(total=Sum('bytes_transferred'))
+        .order_by('-total')[:5]
+    )
+    top_ip_labels = [r['source_ip'] for r in top_ips]
+    top_ip_values = [r['total'] for r in top_ips]
+
+    latest_alerts = Alert.objects.order_by('-timestamp')[:5]
+
+    return render(request, "monitor/dashboard.html", {
         "total_logs": total_logs,
         "active_alerts": active_alerts,
         "unique_ips": unique_ips,
         "timeline_labels": timeline_labels,
         "timeline_data": timeline_data,
         "top_ip_labels": top_ip_labels,
-        "top_ip_values": top_ip_values,
+       "top_ip_values": top_ip_values,
         "latest_alerts": latest_alerts,
-    }
-
-    return render(request, "monitor/dashboard.html", context)
-
-# ---------------------------
-# ALERTS VIEW
-# ---------------------------
-@role_required(['admin'])
-def alerts_view(request):
-    alerts = Alert.objects.order_by('-timestamp')
-    return render(request, 'monitor/alerts.html', {"alerts": alerts})
+        "threat_count": threat_count,
+    })
 
 
-# ---------------------------
-# LOGS VIEW
-# ---------------------------
+
+
+# --- Alerts list ---
 @role_required(['admin', 'analyst', 'viewer'])
-def logs_view(request):
-    logs = NetworkLog.objects.order_by('-timestamp')
-    return render(request, 'monitor/logs.html', {"logs": logs})
+def alerts_list_view(request):
+    alerts = Alert.objects.order_by('-timestamp')
+    return render(request, "monitor/alerts.html", {"alerts": alerts})
+
+
+# HTMX partial endpoint for alert refresh
+@role_required(['admin', 'analyst', 'viewer'])
+def alerts_partial(request):
+    latest_alerts = Alert.objects.order_by('-timestamp')[:10]
+    return render(request, "monitor/alerts_partial.html", {
+        "latest_alerts": latest_alerts
+    })
+
+
+
+# --- Anomalies (just queries of recent detections) ---
+@role_required(['admin', 'analyst', 'viewer'])
+def anomalies_view(request):
+    # For now, anomalies are Alerts with severity "High" or special flag
+    anomalies = Alert.objects.filter(severity="High").order_by('-timestamp')
+    return render(request, "monitor/anomalies.html", {"anomalies": anomalies})
+
+
+# --- System Status ---
+@role_required(['admin', 'analyst', 'viewer'])
+def system_status_view(request):
+    # Provide some basic info. You can extend with real sniffer status.
+    total_logs = NetworkLog.objects.count()
+    last_log = NetworkLog.objects.order_by('-timestamp').first()
+    last_time = last_log.timestamp if last_log else None
+
+    context = {
+        "total_logs": total_logs,
+        "last_log_time": last_time,
+        "npcap_running": True,   # you can replace with real check
+        "sniffer_interface": request.GET.get("iface", "auto-detected"),
+    }
+    return render(request, "monitor/system_status.html", context)
+def logs_partial(request):
+    logs = NetworkLog.objects.order_by('-timestamp')[:50]  # latest 50
+    return render(request, "monitor/partials/logs_partial.html", {"logs": logs})
+
+@role_required(['admin', 'analyst', 'viewer'])
+def traffic_view(request):
+    logs = NetworkLog.objects.order_by('-timestamp')[:300]  # correct model
+
+    # HTMX request = return only the table
+    if request.htmx:
+        return render(request, "monitor/partials/traffic_table.html", {"logs": logs})
+
+    # Regular page view = return full page
+    return render(request, "monitor/traffic.html", {"logs": logs})
+
+
+
+# --- Reports & Exports ---
+@role_required(['admin', 'analyst', 'viewer'])
+def reports_view(request):
+    # options page: daily summary etc.
+    total_logs = NetworkLog.objects.count()
+    return render(request, "monitor/reports.html", {"total_logs": total_logs})
+
+
+@role_required(['admin', 'analyst', 'viewer'])
+def export_logs_csv(request):
+    # Export recent logs as CSV
+    logs = NetworkLog.objects.order_by('-timestamp')[:1000]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["timestamp", "source_ip", "destination_ip", "protocol", "bytes_transferred"])
+    for l in logs:
+        writer.writerow([l.timestamp.isoformat(), l.source_ip, l.destination_ip, l.protocol, l.bytes_transferred])
+    resp = HttpResponse(buf.getvalue(), content_type="text/csv")
+    resp['Content-Disposition'] = 'attachment; filename=network_logs.csv'
+    return resp

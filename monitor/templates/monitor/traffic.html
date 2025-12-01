@@ -1,0 +1,12 @@
+{% extends "monitor/base.html" %}
+{% block title %}Network Logs{% endblock %}
+
+{% block content %}
+<div id="logs-container"
+     hx-get="{% url 'monitor:traffic' %}"
+     hx-trigger="every 5s"
+     hx-swap="innerHTML">
+     
+    {% include "monitor/partials/traffic_table.html" %}
+</div>
+{% endblock %}

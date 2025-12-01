@@ -27,9 +27,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
-    'monitor',
     'authsystem',
+    'threatintel',
+    'monitor',
+ 
 ]
 
 MIDDLEWARE = [
@@ -41,9 +42,20 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 
-    # Custom rate limiting middleware (if you have it)
+    # Rate limit BEFORE login processing
     "authsystem.middleware.LoginRateLimitMiddleware",
+
+    # Log activity AFTER login processing
+    "authsystem.middleware.ActivityLoggingMiddleware",
+    
+    #Threat intel
+    "authsystem.middleware.ThreatIntelMiddleware",
+    #HTMX
+    "django_htmx.middleware.HtmxMiddleware",
+
+
 ]
+
 
 ROOT_URLCONF = 'network_monitor.urls'
 
@@ -107,7 +119,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
-USE_TZ = True
+USE_TZ = False
 
 # ---------------------------
 # STATIC FILES

@@ -5,12 +5,15 @@ from django.shortcuts import redirect
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    # Authsystem URLs (login, register, email verification)
-    path('', include('authsystem.urls')),  # e.g., /login/, /register/, /verify/<uid>/<token>/
+    # Authsystem URLs (login/register/etc)
+    path('', include('authsystem.urls')),
 
-    # Monitor app URLs under /monitor/ prefix
-    path('monitor/', include('monitor.urls')),  # /monitor/dashboard/, /monitor/logs/, /monitor/alerts/
+    # Monitor app - mounted under /monitor/
+    path('monitor/', include('monitor.urls')),
 
-    # Redirect root URL to dashboard
-    path('', lambda request: redirect('dashboard')),
+    # Threat intel app
+    path('threats/', include('threatintel.urls')),
+
+    # Legacy: redirect root to dashboard
+    path('', lambda request: redirect('monitor:dashboard')),
 ]

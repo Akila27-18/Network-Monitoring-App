@@ -1,0 +1,27 @@
+{% extends "monitor/base.html" %}
+{% block title %}System Status — Network Monitor{% endblock %}
+{% block content %}
+<h1 class="text-2xl text-cyan-400 mb-4">System Status</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div class="bg-[#102238] p-4 rounded">
+    <h3 class="text-sm text-gray-300">Total logs</h3>
+    <div class="text-xl font-bold">{{ total_logs }}</div>
+  </div>
+
+  <div class="bg-[#102238] p-4 rounded">
+    <h3 class="text-sm text-gray-300">Last log time</h3>
+    <div class="text-xl">{{ last_log_time }}</div>
+  </div>
+
+  <div class="bg-[#102238] p-4 rounded">
+    <h3 class="text-sm text-gray-300">NPCAP running</h3>
+    <div class="text-xl">{{ npcap_running }}</div>
+  </div>
+
+  <div class="bg-[#102238] p-4 rounded">
+    <h3 class="text-sm text-gray-300">Sniffer interface</h3>
+    <div class="text-xl">{{ sniffer_interface }}</div>
+  </div>
+</div>
+{% endblock %}

@@ -6,40 +6,44 @@
 
 <h1 class="text-3xl font-bold mb-6 text-cyan-400">Network Dashboard</h1>
 
-<!-- SUMMARY CARDS -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+<!-- SUMMARY CARDS — HTMX AUTO REFRESH -->
+<div id="stats-container"
+     hx-get="{% url 'monitor:stats_partial' %}"
+     hx-trigger="load, every 10s"
+     hx-swap="innerHTML">
 
-    <!-- Total Logs -->
-    <div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow-md">
-        <h3 class="text-lg text-gray-300">Total Logs</h3>
-        <p class="text-3xl font-bold text-cyan-400">{{ total_logs }}</p>
+    <!-- Initial fallback values -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
+        <div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow-md">
+            <h3 class="text-lg text-gray-300">Total Logs</h3>
+            <p class="text-3xl font-bold text-cyan-400">{{ total_logs }}</p>
+        </div>
+
+        <div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow-md">
+            <h3 class="text-lg text-gray-300">Active Alerts</h3>
+            <p class="text-3xl font-bold text-red-400">{{ active_alerts }}</p>
+        </div>
+
+        <div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow-md">
+            <h3 class="text-lg text-gray-300">Unique Source IPs</h3>
+            <p class="text-3xl font-bold text-cyan-400">{{ unique_ips }}</p>
+        </div>
+
+        <div class="bg-[#102238] p-6 rounded-xl border border-red-500/30">
+            <h3 class="text-lg text-red-400">Threat Intelligence Hits</h3>
+            <p class="text-3xl font-bold text-red-500">{{ threat_count }}</p>
+        </div>
     </div>
-
-    <!-- Alerts -->
-    <div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow-md">
-        <h3 class="text-lg text-gray-300">Active Alerts</h3>
-        <p class="text-3xl font-bold text-red-400">{{ active_alerts }}</p>
-    </div>
-
-    <!-- Unique IPs -->
-    <div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow-md">
-        <h3 class="text-lg text-gray-300">Unique Source IPs</h3>
-        <p class="text-3xl font-bold text-cyan-400">{{ unique_ips }}</p>
-    </div>
-
 </div>
-
 
 <!-- CHARTS SECTION -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
 
-    <!-- Traffic Over Time -->
     <div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow-md">
         <h2 class="text-xl mb-3 text-gray-200 font-semibold">Traffic Over Time</h2>
         <canvas id="trafficChart"></canvas>
     </div>
 
-    <!-- Top Source IPs -->
     <div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow-md">
         <h2 class="text-xl mb-3 text-gray-200 font-semibold">Top Source IPs</h2>
         <canvas id="topIPsChart"></canvas>
@@ -47,11 +51,16 @@
 
 </div>
 
-<!-- ALERT PANEL -->
+<!-- ALERT PANEL — HTMX AUTO REFRESH -->
 <div class="mt-10 bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow-md">
     <h2 class="text-xl font-semibold text-red-400 mb-4">Recent Alerts</h2>
 
-    {% if latest_alerts %}
+    <div id="alerts-container"
+         hx-get="{% url 'monitor:alerts_partial' %}"
+         hx-trigger="load, every 7s"
+         hx-swap="innerHTML">
+
+        {% if latest_alerts %}
         <ul class="space-y-2">
             {% for alert in latest_alerts %}
             <li class="flex justify-between bg-[#0d1a2b] px-4 py-2 rounded border border-red-400/20">
@@ -60,49 +69,49 @@
             </li>
             {% endfor %}
         </ul>
-    {% else %}
+        {% else %}
         <p class="text-gray-400">No recent alerts.</p>
-    {% endif %}
+        {% endif %}
+    </div>
 </div>
-
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-    // Convert Django variables safely
-    const timelineLabels = JSON.parse('{{ timeline_labels|safe|escapejs }}');
-    const timelineData = JSON.parse('{{ timeline_data|safe|escapejs }}');
-    const topIPLabels = JSON.parse('{{ top_ip_labels|safe|escapejs }}');
-    const topIPValues = JSON.parse('{{ top_ip_values|safe|escapejs }}');
-
-    // Traffic Over Time Chart
-    new Chart(document.getElementById('trafficChart'), {
-        type: 'line',
-        data: {
-            labels: timelineLabels,
-            datasets: [{
-                label: 'Bytes Transferred',
-                data: timelineData,
-                borderWidth: 2,
-                borderColor: 'cyan',
-                tension: 0.3
-            }]
-        }
+document.addEventListener("DOMContentLoaded", function () {
+    // Charts
+    const trafficChart = new Chart(document.getElementById("trafficChart"), {
+        type: "line",
+        data: { labels: [], datasets: [{ label: "Bytes", data: [], borderColor: "cyan", tension: 0.3 }] },
     });
 
-    // Top Source IPs Chart
-    new Chart(document.getElementById('topIPsChart'), {
-        type: 'bar',
-        data: {
-            labels: topIPLabels,
-            datasets: [{
-                label: 'Total Bytes',
-                data: topIPValues,
-                backgroundColor: 'cyan'
-            }]
-        }
+    const topIPsChart = new Chart(document.getElementById("topIPsChart"), {
+        type: "bar",
+        data: { labels: [], datasets: [{ label: "Bytes", data: [], backgroundColor: "cyan" }] },
     });
+
+    async function updateCharts() {
+        try {
+            const res = await fetch("{% url 'monitor:dashboard_data_api' %}");
+            const data = await res.json();
+
+            // Timeline chart
+            trafficChart.data.labels = data.timeline_labels;
+            trafficChart.data.datasets[0].data = data.timeline_data;
+            trafficChart.update();
+
+            // Top IPs chart
+            topIPsChart.data.labels = data.top_ip_labels;
+            topIPsChart.data.datasets[0].data = data.top_ip_values;
+            topIPsChart.update();
+        } catch (err) {
+            console.error("Chart update error:", err);
+        }
+    }
+
+    updateCharts();
+    setInterval(updateCharts, 8000);
+});
 </script>
-
 
 {% endblock %}

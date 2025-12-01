@@ -1,0 +1,12 @@
+{% if latest_alerts %}
+<ul class="space-y-2">
+    {% for alert in latest_alerts %}
+    <li class="flex justify-between bg-[#0d1a2b] px-4 py-2 rounded border border-red-400/20">
+        <span>{{ alert.message }}</span>
+        <span class="text-gray-400">{{ alert.timestamp }}</span>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="text-gray-400">No recent alerts.</p>
+{% endif %}

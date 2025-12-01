@@ -1,0 +1,33 @@
+<h2 class="text-3xl font-bold text-cyan-400 mb-6">Network Logs</h2>
+
+<div class="bg-[#102238] p-6 rounded-xl border border-cyan-500/20 shadow">
+    {% if logs %}
+    <table class="w-full text-left border-collapse">
+        <thead>
+            <tr class="border-b border-cyan-500/20 text-cyan-300">
+                <th class="pb-2">Timestamp</th>
+                <th class="pb-2">IP Address</th>
+                <th class="pb-2">Event</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for log in logs %}
+            <tr class="border-b border-cyan-500/10 hover:bg-[#0d1a2b]">
+                <td class="py-2 text-gray-300">{{ log.timestamp }}</td>
+
+                <!-- Source IP -->
+                <td class="py-2 text-gray-300">{{ log.source_ip }}</td>
+
+                <!-- Event description generated from model fields -->
+                <td class="py-2 text-gray-300">
+                    {{ log.source_ip }} → {{ log.destination_ip }} ({{ log.protocol }}, {{ log.bytes_transferred }} bytes)
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-gray-400">No logs available.</p>
+    {% endif %}
+</div>

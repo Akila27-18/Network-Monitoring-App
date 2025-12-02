@@ -112,7 +112,7 @@ def login_view(request):
 
                 log_event(user, "LOGIN", request)  # <-- success log
 
-                return redirect("dashboard")
+                return redirect("monitor:dashboard")
 
             # -------------------------------
             # INVALID CREDENTIALS BLOCK

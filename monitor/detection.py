@@ -2,6 +2,8 @@ from monitor.models import NetworkLog, Alert
 from datetime import datetime, timedelta
 from django.db.models import Count, Sum
 
+
+
 def detect_high_traffic():
     window = datetime.now() - timedelta(minutes=5)
 

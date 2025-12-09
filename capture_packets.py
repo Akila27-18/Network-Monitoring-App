@@ -1,118 +1,105 @@
 import os
 import django
+import traceback
 import time
 from django.utils import timezone
+from scapy.all import sniff, get_if_list, conf, IP, ICMP
 
-# -------------------------------------------------------------------
-# 1. Django must load BEFORE importing models
-# -------------------------------------------------------------------
+# ------------------ 1. Django setup ------------------
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "network_monitor.settings")
 django.setup()
 
-from scapy.all import sniff, IP, conf, get_if_list
 from monitor.models import NetworkLog, Alert
 
-# ThreatIntel app optional
+# Optional ThreatIntel
 try:
     from threatintel.models import ThreatIP
     THREAT_INTEL_ENABLED = True
 except Exception:
     THREAT_INTEL_ENABLED = False
 
-from monitor.detection import detect_high_traffic, detect_port_scan, detect_icmp_flood
-
-
-# -------------------------------------------------------------------
-# 2. Detect the correct network interface for Windows
-# -------------------------------------------------------------------
-def auto_detect_interface():
+# ------------------ 2. Auto-detect interface ------------------
+def choose_interface():
     interfaces = get_if_list()
-    for i in interfaces:
-        if ("Wi-Fi" in i) or ("Wireless" in i) or ("Intel" in i):
-            return i
+    for iface in interfaces:
+        if ("Wi-Fi" in iface) or ("Wireless" in iface) or ("Ethernet" in iface) or ("Intel" in iface):
+            return iface
+    return interfaces[0]  # fallback to first interface
 
-    # Fallback to first interface
-    return interfaces[0]
+INTERFACE = "\\Device\\NPF_{7BEE7DF4-F0AC-4A00-8426-F29888BA0183}"
 
-
-INTERFACE = auto_detect_interface()
-print(f"\n======================================")
-print(f"🚀 Packet Sniffer Started")
-print(f"📡 Listening on: {INTERFACE}")
-print(f"📘 Threat Intel Enabled: {THREAT_INTEL_ENABLED}")
-print(f"======================================\n")
+print(f"Sniffing on interface: {INTERFACE}")
+print(f"Threat Intelligence Enabled: {THREAT_INTEL_ENABLED}\n")
 
 conf.use_pcap = True
 conf.sniff_promisc = True
 
-
-# -------------------------------------------------------------------
-# 3. Main Packet Callback
-# -------------------------------------------------------------------
-def packet_callback(packet):
+# ------------------ 3. Packet callback ------------------
+def packet_callback(pkt):
     try:
-        if IP not in packet:
+        if IP not in pkt:
             return
 
-        src = packet[IP].src
-        dst = packet[IP].dst
-        proto = str(packet[IP].proto)
-        bytes_len = len(packet)
-        now = timezone.now()  # timezone-aware timestamp
+        src = pkt[IP].src
+        dst = pkt[IP].dst
+        proto = str(pkt[IP].proto)
+        length = len(pkt)
+        now = timezone.now()
 
-        # -------------------------------
-        # 1. Log packet into DB
-        # -------------------------------
-        NetworkLog.objects.create(
-            source_ip=src,
-            destination_ip=dst,
-            protocol=proto,
-            bytes_transferred=bytes_len,
-            timestamp=now,
-        )
+        # Print ICMP packets for clarity
+        if ICMP in pkt:
+            print(f"ICMP Packet: {src} -> {dst} | {length} bytes")
 
-        print(f"[LOG] {src} → {dst}  | {bytes_len} bytes | proto {proto}")
+        # Log packet to DB
+        try:
+            NetworkLog.objects.create(
+                source_ip=src,
+                destination_ip=dst,
+                protocol=proto,
+                bytes_transferred=length,
+                timestamp=now
+            )
+            print(f"[LOG] {src} → {dst} | {length} bytes | proto {proto}")
+        except Exception as e:
+            print("❌ Failed to log packet:", e)
+            traceback.print_exc()
 
-        # -------------------------------
-        # 2. Threat Intelligence
-        # -------------------------------
+        # Threat Intelligence
         if THREAT_INTEL_ENABLED:
             if ThreatIP.objects.filter(ip=src).exists():
-                print(f"⚠ Threat Intel Alert: Malicious Source {src}")
+                print(f"⚠ Threat: Malicious Source {src}")
                 Alert.objects.create(
                     message=f"Malicious source IP detected: {src}",
                     severity="High"
                 )
             if ThreatIP.objects.filter(ip=dst).exists():
-                print(f"⚠ Threat Intel Alert: Malicious Destination {dst}")
+                print(f"⚠ Threat: Malicious Destination {dst}")
                 Alert.objects.create(
                     message=f"Connection to malicious IP: {dst}",
                     severity="High"
                 )
 
-        # -------------------------------
-        # 3. Run your anomaly detectors
-        # -------------------------------
-        detect_high_traffic()
-        detect_port_scan()
-        detect_icmp_flood()
+        # Placeholder for future anomaly detection
+        # detect_high_traffic()
+        # detect_port_scan()
+        # detect_icmp_flood()
 
     except Exception as e:
         print("❌ Callback error:", e)
+        traceback.print_exc()
 
-
-# -------------------------------------------------------------------
-# 4. Start sniffing
-# -------------------------------------------------------------------
-try:
-    sniff(
-        iface=INTERFACE,
-        prn=packet_callback,
-        store=False,
-        filter="ip",
-    )
-except PermissionError:
-    print("\n❌ ERROR: Need Administrator permissions to sniff.")
-    print("➡ Run CMD or PowerShell as Administrator.\n")
-except KeyboardInterrupt:
-    print("\n🛑 Sniffer stopped by user.\n")
+# ------------------ 4. Continuous sniffing ------------------
+while True:
+    try:
+        sniff(iface=INTERFACE, prn=packet_callback, store=False, filter="ip")
+    except PermissionError:
+        print("❌ Permission denied. Run the script as Administrator/root.")
+        break
+    except KeyboardInterrupt:
+        print("\n🛑 Sniffer stopped by user.")
+        break
+    except Exception as e:
+        print("⚠ Sniffer error:", e)
+        traceback.print_exc()
+        print("⏳ Restarting sniffing in 5 seconds...")
+        time.sleep(5)
